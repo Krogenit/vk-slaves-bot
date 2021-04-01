@@ -1,9 +1,26 @@
 plugins {
     id 'java'
+    id 'com.github.johnrengelman.shadow' version '4.0.2'
 }
 
 group 'org.example'
 version '1.0-SNAPSHOT'
+
+compileJava.options.encoding = 'utf-8'
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'utf-8'
+}
+
+jar {
+    manifest {
+        attributes "Main-Class": "ru.krogenit.slaves.Main"
+    }
+
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
 
 repositories {
     mavenCentral()
