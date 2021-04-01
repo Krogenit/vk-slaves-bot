@@ -1,4 +1,4 @@
-package ru.krogenit.slaves;
+package ru.krogenit.slaves.objects;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -17,12 +17,8 @@ public class Slave {
     private int salePrice;
     private int price;
     private List<Slave> slaves;
-    private int balance;
+    protected int balance;
     private int profitPerMin;
     private int slavesCount;
     private long fetterTo;
-
-    public void consumeBalance(int value) {
-        balance -= value;
-    }
 }

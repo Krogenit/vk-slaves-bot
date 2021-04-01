@@ -1,19 +1,17 @@
-package ru.krogenit.slaves.utils;
+package ru.krogenit.slaves.config;
 
 import com.google.gson.ExclusionStrategy;
 import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.internal.Primitives;
 import ru.krogenit.slaves.Configurable;
+import ru.krogenit.slaves.utils.Utils;
 
 import java.io.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.List;
 
 public interface IConfig {
 
@@ -81,49 +79,20 @@ public interface IConfig {
     }
 
     default void save() {
-        if(getConfigFile().exists()) {
-            if (!getConfigFile().delete()) {
-                throw new RuntimeException(getConfigFile().getAbsolutePath());
+        File configFile = getConfigFile();
+        if(configFile.exists()) {
+            if (!configFile.delete()) {
+                throw new RuntimeException(configFile.getAbsolutePath());
             }
         }
-        if(getConfigFile().getParentFile() != null) {
-            //noinspection ResultOfMethodCallIgnored
-            getConfigFile().getParentFile().mkdirs();
+        if(configFile.getParentFile() != null) {
+            configFile.getParentFile().mkdirs();
         }
         String json = GSON_BUILDER.toJson(this);
-        Set<Class<?>> list = new HashSet<>();
-        list.add(getClass());
-        int preSize = 0;
-        while(preSize != list.size()) {
-            preSize = list.size();
-            List<Class<?>> temp = new ArrayList<>();
-            for(Class<?> aClass : list) {
-                for (Field declaredField : aClass.getDeclaredFields()) {
-                    if (declaredField.getType().isAssignableFrom(List.class) || declaredField.getType().isAssignableFrom(Map.class)) {
-                        if(declaredField.getGenericType() instanceof ParameterizedType) {
-                            Type[] actualTypeArguments = ((ParameterizedType) declaredField.getGenericType()).getActualTypeArguments();
-                            Utils.forEach(actualTypeArguments, type -> {
-                                if(type instanceof Class) {
-                                    temp.add((Class<?>) type);
-                                }
-                                return true;
-                            });
-                        }
-                    } else {
-                        temp.add(declaredField.getType());
-                        temp.addAll(Utils.getClassesHierarchy(declaredField.getType()));
-                    }
-                }
-            }
-            list.addAll(temp);
-            list.removeIf(aClass -> aClass == File.class || aClass == Class.class || aClass == Object.class || aClass == String.class || Primitives.isPrimitive(aClass) || Map.class.isAssignableFrom(aClass) || List.class.isAssignableFrom(aClass));
-        }
-        String[] split = json.split("\n");
+
         try {
-            FileWriter fileWriter = new FileWriter(getConfigFile());
-            for (String s : split) {
-                fileWriter.write(s);
-            }
+            FileWriter fileWriter = new FileWriter(configFile);
+            fileWriter.write(json);
             fileWriter.flush();
             fileWriter.close();
         } catch (IOException e) {

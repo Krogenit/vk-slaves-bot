@@ -5,42 +5,39 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.io.ChunkedInputStream;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.AbstractHttpMessage;
 import org.apache.http.util.EntityUtils;
-import ru.krogenit.slaves.utils.Config;
+import ru.krogenit.slaves.objects.Me;
+import ru.krogenit.slaves.objects.Slave;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 public class RequestHandler {
 
-    public static final RequestHandler INSTANCE = new RequestHandler();
+    private final Random rand = new Random();
+    private final int minSleepTime;
+    private final int maxSleepTime;
+    private final int timeout = 120;
+    private final RequestConfig config = RequestConfig.custom().setConnectTimeout(timeout * 1000).setConnectionRequestTimeout(timeout * 1000).setSocketTimeout(timeout * 1000).build();
+    private final CloseableHttpClient httpClient = HttpClientBuilder.create().setDefaultRequestConfig(config).build();
+    private final String token;
 
-    private final static Random rand = new Random();
-    private final static int MIN_SLEEP_TIME = 5000;
-    private final static int MAX_SLEEP_TIME = 10000;
-    private final CloseableHttpClient httpClient = HttpClients.createDefault();
-    private final String token = Config.INSTANCE.getToken();
-
-    private final long[] friends = new long[] {5180266,7131289,7253566,9306143,11484567,12211353,20546619,24529075,25642395,28144274,28507745,31324782,32218647,33384311,34901733,35220086,37208350,42244428
-            ,43565134,43672046,49202937,49571545,53007423,54480760,56374444,63610620,75470680,80870590,86102688,86357088,88635789,88753973,89557392,90110633,90667079,94164344,99240427,100059501,100202398
-            ,100632474,101774318,110604453,113853678,120682390,121835807,134378677,135352209,136092634,136407986,139163740,139584173,139807876,141349340,145359779,148990535,153340276,153932272,155844080
-            ,163705622,164174906,172408569,174367440,174880118,176781566,177466165,177506864,178104926,178812172,179081446,179281170,179827638,180291287,187286782,207748446,211564172,223369023,242500054
-            ,243436871,244501413,246897169,251144704,260313558,261894423,266998253,270028423,279181596,305512670,313001257,321297312,327672835,341174709,363595597,388992892,398503537,401027394,425681451,
-            449649978,563482749,569370078,597637769};
+    public RequestHandler(int minSleepTime, int maxSleepTime, String token) {
+        this.minSleepTime = minSleepTime;
+        this.maxSleepTime = maxSleepTime;
+        this.token = token;
+    }
 
     public Slave get(long id) {
         GetResponse response = getRequest("user?id=" + id);
@@ -53,7 +50,7 @@ public class RequestHandler {
         return null;
     }
 
-    public List<Slave> getFriends() {
+    public List<Slave> getFriends(long[] friends) {
         JsonObject jsonObject = new JsonObject();
         JsonArray jsonArray = new JsonArray();
         for (int i = 0; i < friends.length; i++) {
@@ -70,7 +67,7 @@ public class RequestHandler {
                 String result = EntityUtils.toString(entity);
                 response.getPost().releaseConnection();
                 JsonObject jsonObject1 = new Gson().fromJson(result, JsonObject.class);
-                System.out.println(jsonObject1);
+//                System.out.println(jsonObject1);
                 return Parser.INSTANCE.parseSlaves(jsonObject1, "users");
             } catch (Exception e) {
                 e.printStackTrace();
@@ -97,7 +94,7 @@ public class RequestHandler {
         String json = new Gson().toJson(jsonObject);
         HttpResponse httpResponse = postRequest("saleSlave", json);
         if(httpResponse.getStatusLine().getReasonPhrase().equalsIgnoreCase("ok")) {
-            System.out.println("Успешно продан раб " + slave.getId() + " за " + slave.getSalePrice());
+//            System.out.println("Успешно продан раб " + slave.getId() + " за " + slave.getSalePrice());
             return true;
         } else {
             System.out.println("Не удалось продать раба " + slave.getId());
@@ -122,18 +119,20 @@ public class RequestHandler {
         jsonObject.add("name", nameElement);
         String json = new Gson().toJson(jsonObject);
         HttpResponse httpResponse = postRequest("jobSlave", json);
-        if(httpResponse.getStatusLine().getReasonPhrase().equalsIgnoreCase("ok")) {
-            System.out.println("Успешно назначена работа " + name + " рабу " + id);
+        if(httpResponse != null && httpResponse.getStatusLine().getReasonPhrase().equalsIgnoreCase("ok")) {
+//            System.out.println("Успешно назначена работа " + name + " рабу " + id);
             return true;
         } else {
             System.out.println("Не удалось назначить работу рабу " + id);
-            System.out.println(httpResponse.getStatusLine().toString());
-            try {
-                String result = EntityUtils.toString(httpResponse.getEntity());
-                JsonObject errorObject = new Gson().fromJson(result, JsonObject.class);
-                System.out.println(errorObject);
-            } catch (Exception e) {
-                e.printStackTrace();
+            if(httpResponse != null) {
+                System.out.println(httpResponse.getStatusLine().toString());
+                try {
+                    String result = EntityUtils.toString(httpResponse.getEntity());
+                    JsonObject errorObject = new Gson().fromJson(result, JsonObject.class);
+                    System.out.println(errorObject);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -154,9 +153,7 @@ public class RequestHandler {
     public List<Slave> getSlaves(long id) {
         GetResponse response = getRequest("slaveList?id=" + id);
         if (response.getResponse().equalsIgnoreCase("ok")) {
-            List<Slave> slaves = Parser.INSTANCE.parseSlaves(response.getJsonObject());
-            System.out.println(slaves);
-            return slaves;
+            return Parser.INSTANCE.parseSlaves(response.getJsonObject());
         } else {
             System.out.println("getSlaves error " + response.getResponse());
         }
@@ -170,18 +167,20 @@ public class RequestHandler {
         jsonObject.add("slave_id", jsonElement);
         String json = new Gson().toJson(jsonObject);
         HttpResponse httpResponse = postRequest("buySlave", json);
-        if(httpResponse.getStatusLine().getReasonPhrase().equalsIgnoreCase("ok")) {
-            System.out.println("Успешно куплен раб " + slave.getId() + " за " + slave.getPrice());
+        if(httpResponse != null && httpResponse.getStatusLine().getReasonPhrase().equalsIgnoreCase("ok")) {
+//            System.out.println("Успешно куплен раб " + slave.getId() + " за " + slave.getPrice());
             return true;
         } else {
             System.out.println("Не удалось купить раба " + slave.getId());
-            System.out.println(httpResponse.getStatusLine().toString());
-            try {
-                String result = EntityUtils.toString(httpResponse.getEntity());
-                JsonObject errorObject = new Gson().fromJson(result, JsonObject.class);
-                System.out.println(errorObject);
-            } catch (Exception e) {
-                e.printStackTrace();
+            if(httpResponse != null) {
+                System.out.println(httpResponse.getStatusLine().toString());
+                try {
+                    String result = EntityUtils.toString(httpResponse.getEntity());
+                    JsonObject errorObject = new Gson().fromJson(result, JsonObject.class);
+                    System.out.println(errorObject);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -247,13 +246,13 @@ public class RequestHandler {
             populateHeaders(request, method, "GET");
 
             CloseableHttpResponse httpResponse = httpClient.execute(request);
-            System.out.println(httpResponse.getStatusLine().toString());
+//            System.out.println(httpResponse.getStatusLine().toString());
 
             HttpEntity entity = httpResponse.getEntity();
             if (entity != null) {
                 String result = EntityUtils.toString(entity);
                 JsonObject jsonObject = new Gson().fromJson(result, JsonObject.class);
-                System.out.println(jsonObject);
+//                System.out.println(jsonObject);
                 response = new GetResponse(httpResponse.getStatusLine().getReasonPhrase(), jsonObject);
             }
 
@@ -287,7 +286,7 @@ public class RequestHandler {
     }
 
     private long getRandomSleepTime() {
-        return rand.nextInt(MAX_SLEEP_TIME - MIN_SLEEP_TIME) + MIN_SLEEP_TIME;
+        return rand.nextInt(maxSleepTime - minSleepTime) + minSleepTime;
     }
 
     public void clear() {

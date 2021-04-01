@@ -2,6 +2,8 @@ package ru.krogenit.slaves;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import ru.krogenit.slaves.objects.Job;
+import ru.krogenit.slaves.objects.Slave;
 
 import java.util.ArrayList;
 import java.util.List;
